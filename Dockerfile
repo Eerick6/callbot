@@ -1,4 +1,8 @@
-FROM dailyco/pipecat-base:latest
+# Usar imagen base oficial de Python que SÍ existe en Docker Hub
+FROM python:3.12-slim
+
+# Instalar uv (herramienta para dependencias)
+RUN pip install uv
 
 # Enable bytecode compilation
 ENV UV_COMPILE_BYTECODE=1
