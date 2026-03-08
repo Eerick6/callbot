@@ -215,11 +215,23 @@ async def bot(runner_args: RunnerArguments, testing: Optional[bool] = False):
         caller_number = call_info.get("from_number", "")
         logger.info(f"Call from: {caller_number} to: {call_info.get('to_number')}")
 
+    # 🔥 AUTO-CONFIGURACIÓN: Detecta si está en Render o local
+    if os.getenv("RENDER"):
+        # Estamos en Render - construir URL desde el servicio
+        render_service = os.getenv("RENDER_SERVICE_NAME", "taxi-bot-twilio")
+        base_url = f"{render_service}.onrender.com"
+        logger.info(f"🔵 Render mode detected - using base_url: {base_url}")
+    else:
+        # Estamos en local - usar PROXY_HOST del .env
+        base_url = os.getenv("PROXY_HOST", "localhost:7860")
+        logger.info(f"🟢 Local mode detected - using base_url: {base_url}")
+
     serializer = TwilioFrameSerializer(
         stream_sid=call_data["stream_id"],
         call_sid=call_data["call_id"],
         account_sid=os.getenv("TWILIO_ACCOUNT_SID", ""),
         auth_token=os.getenv("TWILIO_AUTH_TOKEN", ""),
+        base_url=base_url,  # ← Auto-configurado
     )
 
     # Sin RNNoise, sin filtros extra
