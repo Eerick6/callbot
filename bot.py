@@ -36,6 +36,29 @@ from pipecat.transports.websocket.fastapi import (
 
 load_dotenv(override=True)
 
+# ============================================
+# DEPURACIÓN Y CONFIGURACIÓN FORZADA PARA RENDER
+# ============================================
+logger.info("=" * 60)
+logger.info("INICIANDO BOT CON CONFIGURACIÓN PARA RENDER")
+
+# 1. Forzar PROXY_HOST con la URL de Render
+RENDER_APP_URL = "taxi-bot-twilio.onrender.com"  # Sin https://
+os.environ["PROXY_HOST"] = RENDER_APP_URL
+logger.info(f"✓ PROXY_HOST forzado a: {os.environ['PROXY_HOST']}")
+
+# 2. Verificar otras variables relevantes
+logger.info(f"✓ RENDER_EXTERNAL_URL: {os.getenv('RENDER_EXTERNAL_URL', 'no definida')}")
+logger.info(f"✓ PORT: {os.getenv('PORT', '7860')}")
+
+# 3. Mostrar todas las variables de Render relevantes
+for key, value in os.environ.items():
+    if "RENDER" in key or "PROXY" in key or "HOST" in key or "URL" in key:
+        logger.info(f"  {key} = {value}")
+
+logger.info("=" * 60)
+# ============================================
+
 logger.disable("pipecat.services.stt_service")
 
 
@@ -113,7 +136,6 @@ async def run_bot(
 ):
     logger.info("Starting Twilio bot")
 
-    # STT igual al bot web que te funciona bien
     stt = DeepgramSTTService(
         api_key=os.getenv("DEEPGRAM_API_KEY"),
         live_options=LiveOptions(
@@ -122,7 +144,6 @@ async def run_bot(
         ),
     )
 
-    # TTS igual al bot web que te funciona bien
     tts = CartesiaTTSService(
         api_key=os.getenv("CARTESIA_API_KEY"),
         voice_id="d4db5fb9-f44b-4bd1-85fa-192e0f0d75f9",
@@ -135,7 +156,6 @@ async def run_bot(
         ),
     )
 
-    # LLM igual al bot web que te funciona bien
     llm = OpenAILLMService(
         api_key=os.getenv("OPENAI_API_KEY"),
     )
@@ -149,7 +169,6 @@ async def run_bot(
 
     context = LLMContext(messages)
 
-    # Igual al primero: solo VAD simple con Silero
     user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
         context,
         user_params=LLMUserAggregatorParams(
@@ -205,8 +224,17 @@ async def run_bot(
 
 async def bot(runner_args: RunnerArguments, testing: Optional[bool] = False):
     """Main bot entry point compatible with Pipecat Cloud."""
+    
+    logger.info("=" * 60)
+    logger.info("EJECUTANDO FUNCIÓN 'bot'")
+    logger.info(f"runner_args.websocket: {runner_args.websocket}")
+    
+    from pipecat.runner.utils import get_proxy_url
+    proxy_url_detectada = get_proxy_url()
+    logger.info(f"Proxy URL detectada por Pipecat (get_proxy_url): {proxy_url_detectada}")
 
     _, call_data = await parse_telephony_websocket(runner_args.websocket)
+    logger.info(f"call_data: {call_data}")
 
     call_info = await get_call_info(call_data["call_id"])
     caller_number = ""
@@ -222,7 +250,6 @@ async def bot(runner_args: RunnerArguments, testing: Optional[bool] = False):
         auth_token=os.getenv("TWILIO_AUTH_TOKEN", ""),
     )
 
-    # Sin RNNoise, sin filtros extra
     transport = FastAPIWebsocketTransport(
         websocket=runner_args.websocket,
         params=FastAPIWebsocketParams(
@@ -240,9 +267,9 @@ async def bot(runner_args: RunnerArguments, testing: Optional[bool] = False):
         call_sid=call_data["call_id"],
         caller_number=caller_number,
     )
+    logger.info("=" * 60)
 
 
 if __name__ == "__main__":
     from pipecat.runner.run import main
-
     main()
