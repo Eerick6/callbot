@@ -113,7 +113,6 @@ async def run_bot(
 ):
     logger.info("Starting Twilio bot")
 
-    # STT igual al bot web que te funciona bien
     stt = DeepgramSTTService(
         api_key=os.getenv("DEEPGRAM_API_KEY"),
         live_options=LiveOptions(
@@ -122,7 +121,6 @@ async def run_bot(
         ),
     )
 
-    # TTS igual al bot web que te funciona bien
     tts = CartesiaTTSService(
         api_key=os.getenv("CARTESIA_API_KEY"),
         voice_id="d4db5fb9-f44b-4bd1-85fa-192e0f0d75f9",
@@ -135,7 +133,6 @@ async def run_bot(
         ),
     )
 
-    # LLM igual al bot web que te funciona bien
     llm = OpenAILLMService(
         api_key=os.getenv("OPENAI_API_KEY"),
     )
@@ -149,7 +146,6 @@ async def run_bot(
 
     context = LLMContext(messages)
 
-    # Igual al primero: solo VAD simple con Silero
     user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
         context,
         user_params=LLMUserAggregatorParams(
@@ -215,26 +211,25 @@ async def bot(runner_args: RunnerArguments, testing: Optional[bool] = False):
         caller_number = call_info.get("from_number", "")
         logger.info(f"Call from: {caller_number} to: {call_info.get('to_number')}")
 
-    # 🔥 AUTO-CONFIGURACIÓN: Detecta si está en Render o local
+    # 🔥 SOLUCIÓN DEFINITIVA - Hardcodeamos el dominio de Render
+    # y usamos PROXY_HOST solo para local
     if os.getenv("RENDER"):
-        # Estamos en Render - construir URL desde el servicio
-        render_service = os.getenv("RENDER_SERVICE_NAME", "taxi-bot-twilio")
-        base_url = f"{render_service}.onrender.com"
-        logger.info(f"🔵 Render mode detected - using base_url: {base_url}")
+        # En Render, usamos el dominio fijo
+        base_url = "taxi-bot-twilio.onrender.com"
+        logger.info(f"🚀 RENDER MODE: using {base_url}")
     else:
-        # Estamos en local - usar PROXY_HOST del .env
+        # En local, usamos PROXY_HOST del .env
         base_url = os.getenv("PROXY_HOST", "localhost:7860")
-        logger.info(f"🟢 Local mode detected - using base_url: {base_url}")
+        logger.info(f"💻 LOCAL MODE: using {base_url}")
 
     serializer = TwilioFrameSerializer(
         stream_sid=call_data["stream_id"],
         call_sid=call_data["call_id"],
         account_sid=os.getenv("TWILIO_ACCOUNT_SID", ""),
         auth_token=os.getenv("TWILIO_AUTH_TOKEN", ""),
-        base_url=base_url,  # ← Auto-configurado
+        base_url=base_url,  # ← ESTO ES LO QUE FALTABA
     )
 
-    # Sin RNNoise, sin filtros extra
     transport = FastAPIWebsocketTransport(
         websocket=runner_args.websocket,
         params=FastAPIWebsocketParams(
