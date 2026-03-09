@@ -115,8 +115,13 @@ async def run_bot(
     stt = DeepgramSTTService(
         api_key=os.getenv("DEEPGRAM_API_KEY"),
         live_options=LiveOptions(
-            model="nova-3-general",
+            model="nova-2-general", 
             language="es",
+            encoding="linear16",
+            sample_rate=8000,
+            channels=1,
+            smart_format=True, 
+            interim_results=False,  
         ),
     )
 
@@ -127,7 +132,7 @@ async def run_bot(
             language="es",
             generation_config=GenerationConfig(
                 emotion="friendly",
-                speed=1.4,
+                speed=1.1,
             ),
         ),
     )
