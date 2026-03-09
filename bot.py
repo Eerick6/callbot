@@ -102,9 +102,14 @@ async def run_bot(
 
     stt = DeepgramSTTService(
         api_key=os.getenv("DEEPGRAM_API_KEY"),
+        sample_rate=8000,
         live_options=LiveOptions(
             model="nova-3-general",
             language="es",
+            encoding="mulaw",
+            interim_results=True,
+            smart_format=True,
+            punctuate=True,
         ),
     )
 
