@@ -30,7 +30,16 @@ from pipecat.transports.websocket.fastapi import (
 
 load_dotenv(override=True)
 
-logger.disable("pipecat.services.stt_service")
+# 🔥 HABILITAR TODOS LOS LOGS PARA DEBUG 🔥
+logger.remove(0)
+logger.add(lambda msg: print(msg, flush=True), level="DEBUG")
+logger.enable("pipecat.services.stt_service")
+logger.enable("pipecat.services.deepgram")
+logger.enable("pipecat.audio.vad")
+logger.enable("pipecat.transports")
+logger.enable("pipecat.processors")
+
+# logger.disable("pipecat.services.stt_service")  # ← COMENTADO para ver logs
 
 
 async def get_call_info(call_sid: str) -> dict:
@@ -98,20 +107,15 @@ async def run_bot(
     call_sid: str = "",
     caller_number: str = "",
 ):
-    logger.info("Starting Twilio bot")
+    logger.info("🚀 Starting Twilio bot")
 
+    # 🔧 CONFIGURACIÓN BÁSICA (como en local) 🔧
     stt = DeepgramSTTService(
         api_key=os.getenv("DEEPGRAM_API_KEY"),
         live_options=LiveOptions(
-            language="es",  # String simple
-            encoding="mulaw",
-            sample_rate=8000,
-            channels=1,
             model="nova-3-general",
-            punctuate=True,
-            interim_results=True,
-            endpointing=300,
-            vad_events=False,
+            language="es",
+            # SOLO lo básico que funcionaba en local
         ),
     )
 
@@ -171,7 +175,7 @@ async def run_bot(
 
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
-        logger.info("Client connected")
+        logger.info("✅ Client connected")
 
         if call_sid:
             await start_twilio_recording(call_sid)
@@ -186,7 +190,7 @@ async def run_bot(
 
     @transport.event_handler("on_client_disconnected")
     async def on_client_disconnected(transport, client):
-        logger.info("Client disconnected")
+        logger.info("❌ Client disconnected")
         await task.cancel()
 
     runner = PipelineRunner(handle_sigint=handle_sigint)
@@ -194,17 +198,17 @@ async def run_bot(
 
 
 async def bot(runner_args: RunnerArguments, testing: Optional[bool] = False):
-    logger.info("Executing bot()")
+    logger.info("📞 Executing bot()")
 
     _, call_data = await parse_telephony_websocket(runner_args.websocket)
-    logger.info(f"call_data: {call_data}")
+    logger.info(f"📋 call_data: {call_data}")
 
     call_info = await get_call_info(call_data["call_id"])
     caller_number = ""
 
     if call_info:
         caller_number = call_info.get("from_number", "")
-        logger.info(f"Call from: {caller_number} to: {call_info.get('to_number')}")
+        logger.info(f"📞 Call from: {caller_number} to: {call_info.get('to_number')}")
 
     serializer = TwilioFrameSerializer(
         stream_sid=call_data["stream_id"],
