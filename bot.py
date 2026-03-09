@@ -1,9 +1,3 @@
-#
-# Copyright (c) 2025, Daily
-#
-# SPDX-License-Identifier: BSD 2-Clause License
-#
-
 import os
 from typing import Optional
 
@@ -36,34 +30,10 @@ from pipecat.transports.websocket.fastapi import (
 
 load_dotenv(override=True)
 
-# ============================================
-# DEPURACIÓN Y CONFIGURACIÓN FORZADA PARA RENDER
-# ============================================
-logger.info("=" * 60)
-logger.info("INICIANDO BOT CON CONFIGURACIÓN PARA RENDER")
-
-# 1. Forzar PROXY_HOST con la URL de Render
-RENDER_APP_URL = "taxi-bot-twilio.onrender.com"  # Sin https://
-os.environ["PROXY_HOST"] = RENDER_APP_URL
-logger.info(f"✓ PROXY_HOST forzado a: {os.environ['PROXY_HOST']}")
-
-# 2. Verificar otras variables relevantes
-logger.info(f"✓ RENDER_EXTERNAL_URL: {os.getenv('RENDER_EXTERNAL_URL', 'no definida')}")
-logger.info(f"✓ PORT: {os.getenv('PORT', '7860')}")
-
-# 3. Mostrar todas las variables de Render relevantes
-for key, value in os.environ.items():
-    if "RENDER" in key or "PROXY" in key or "HOST" in key or "URL" in key:
-        logger.info(f"  {key} = {value}")
-
-logger.info("=" * 60)
-# ============================================
-
 logger.disable("pipecat.services.stt_service")
 
 
 async def get_call_info(call_sid: str) -> dict:
-    """Fetch call information from Twilio REST API using aiohttp."""
     account_sid = os.getenv("TWILIO_ACCOUNT_SID")
     auth_token = os.getenv("TWILIO_AUTH_TOKEN")
 
@@ -75,7 +45,6 @@ async def get_call_info(call_sid: str) -> dict:
 
     try:
         auth = aiohttp.BasicAuth(account_sid, auth_token)
-
         async with aiohttp.ClientSession() as session:
             async with session.get(url, auth=auth) as response:
                 if response.status != 200:
@@ -84,19 +53,16 @@ async def get_call_info(call_sid: str) -> dict:
                     return {}
 
                 data = await response.json()
-
                 return {
                     "from_number": data.get("from"),
                     "to_number": data.get("to"),
                 }
-
     except Exception as e:
         logger.error(f"Error fetching call info from Twilio: {e}")
         return {}
 
 
 async def start_twilio_recording(call_sid: str):
-    """Start a Twilio-side recording for the given call via the REST API."""
     account_sid = os.getenv("TWILIO_ACCOUNT_SID")
     auth_token = os.getenv("TWILIO_AUTH_TOKEN")
 
@@ -108,7 +74,6 @@ async def start_twilio_recording(call_sid: str):
 
     try:
         auth = aiohttp.BasicAuth(account_sid, auth_token)
-
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 url,
@@ -122,7 +87,6 @@ async def start_twilio_recording(call_sid: str):
 
                 data = await response.json()
                 logger.info(f"Twilio recording started: SID={data.get('sid')}")
-
     except Exception as e:
         logger.error(f"Error starting Twilio recording: {e}")
 
@@ -223,15 +187,7 @@ async def run_bot(
 
 
 async def bot(runner_args: RunnerArguments, testing: Optional[bool] = False):
-    """Main bot entry point compatible with Pipecat Cloud."""
-    
-    logger.info("=" * 60)
-    logger.info("EJECUTANDO FUNCIÓN 'bot'")
-    logger.info(f"runner_args.websocket: {runner_args.websocket}")
-    
-    from pipecat.runner.utils import get_proxy_url
-    proxy_url_detectada = get_proxy_url()
-    logger.info(f"Proxy URL detectada por Pipecat (get_proxy_url): {proxy_url_detectada}")
+    logger.info("Executing bot()")
 
     _, call_data = await parse_telephony_websocket(runner_args.websocket)
     logger.info(f"call_data: {call_data}")
@@ -267,9 +223,3 @@ async def bot(runner_args: RunnerArguments, testing: Optional[bool] = False):
         call_sid=call_data["call_id"],
         caller_number=caller_number,
     )
-    logger.info("=" * 60)
-
-
-if __name__ == "__main__":
-    from pipecat.runner.run import main
-    main()
