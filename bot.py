@@ -1,4 +1,5 @@
 import os
+import asyncio  # 👈 IMPORTANTE: AÑADE ESTO
 from typing import Optional
 
 import aiohttp
@@ -7,7 +8,7 @@ from dotenv import load_dotenv
 from loguru import logger
 
 from pipecat.audio.vad.silero import SileroVADAnalyzer
-from pipecat.frames.frames import LLMRunFrame
+from pipecat.frames.frames import LLMRunFrame, TextFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
@@ -28,6 +29,9 @@ from pipecat.transports.websocket.fastapi import (
     FastAPIWebsocketTransport,
 )
 
+# Importar nuestras tools
+from tools import register_tools
+
 load_dotenv(override=True)
 
 # 🔥 HABILITAR TODOS LOS LOGS PARA DEBUG 🔥
@@ -38,8 +42,6 @@ logger.enable("pipecat.services.deepgram")
 logger.enable("pipecat.audio.vad")
 logger.enable("pipecat.transports")
 logger.enable("pipecat.processors")
-
-# logger.disable("pipecat.services.stt_service")  # ← COMENTADO para ver logs
 
 
 async def get_call_info(call_sid: str) -> dict:
@@ -107,15 +109,14 @@ async def run_bot(
     call_sid: str = "",
     caller_number: str = "",
 ):
-    logger.info("🚀 Starting Twilio bot")
+    logger.info("🚀 Starting TaxiBlau bot")
 
-    # 🔧 CONFIGURACIÓN BÁSICA (como en local) 🔧
+    # 🔧 CONFIGURACIÓN DE SERVICIOS 🔧
     stt = DeepgramSTTService(
         api_key=os.getenv("DEEPGRAM_API_KEY"),
         live_options=LiveOptions(
             model="nova-3-general",
             language="es",
-            # SOLO lo básico que funcionaba en local
         ),
     )
 
@@ -126,7 +127,7 @@ async def run_bot(
             language="es",
             generation_config=GenerationConfig(
                 emotion="friendly",
-                speed=1.2,
+                speed=1.4,
             ),
         ),
     )
@@ -135,10 +136,49 @@ async def run_bot(
         api_key=os.getenv("OPENAI_API_KEY"),
     )
 
+    # 📞 REGISTRAR TOOLS
+    tools_schema = register_tools(
+        llm,
+        caller_number=caller_number,
+        backend_url=os.getenv("BACKEND_URL", "http://localhost:3000"),
+    )
+
+    # 💬 PROMPT DEL SISTEMA
     messages = [
         {
             "role": "system",
-            "content": "Eres una operadora de Taxiblau servicios de taxis responde amable y profesional",
+            "content": (
+                "Eres una operadora telefónica de TaxiBlau para gestionar servicios de taxi en España. "
+                "Responde siempre en español, con frases cortas, naturales y profesionales. "
+                "Tu único objetivo es ayudar con servicios de taxi y no debes desviarte del tema. "
+
+                "El saludo inicial 'Bienvenido a TaxiBlau.' ya se reproduce automáticamente al conectar la llamada, "
+                "así que no debes repetirlo salvo que sea necesario. "
+
+                "La referencia de fecha y hora es siempre Madrid, España (zona horaria Europe/Madrid). "
+                "Cuando el cliente diga 'ahora', 'hoy', 'esta tarde', 'mañana' o expresiones similares, "
+                "interprétalas siempre según la hora local de Madrid. "
+                "Si el cliente no indica fecha ni hora, asume que el servicio es para ahora. "
+
+                "Flujo obligatorio: "
+                "1) Al iniciar cada llamada, usa inmediatamente la herramienta 'check_user_status' para verificar si el cliente ya existe. "
+                "2) Si el cliente existe, pregúntale de forma natural en qué puedes ayudarle hoy. "
+                "3) Si el cliente no existe, pide su nombre completo para registrarlo. "
+                "4) Cuando el cliente diga su nombre, usa inmediatamente la herramienta 'register_user' con ese nombre. "
+                "5) Después de registrarlo, pregunta qué servicio necesita hoy. "
+
+                "Si el cliente quiere reservar un taxi: "
+                "1) Debes pedir siempre la dirección exacta de recogida. "
+                "2) Debes pedir siempre la dirección exacta de destino. "
+                "3) Ambas direcciones deben ser reales, válidas y estar en España. "
+                "4) No aceptes direcciones ambiguas, ficticias, imposibles o fuera de España. "
+                "5) No aceptes viajes entre países. "
+                "6) Si una dirección no está clara o parece inválida, pide que la repitan o completen. "
+                "7) No confirmes ninguna reserva hasta tener los datos necesarios. "
+
+                "Nunca menciones herramientas, verificaciones internas, backend ni procesos del sistema. "
+                "Haz una sola pregunta a la vez."
+            ),
         },
     ]
 
@@ -180,10 +220,23 @@ async def run_bot(
         if call_sid:
             await start_twilio_recording(call_sid)
 
-        messages.append(
+        # 🚀 SALUDO INMEDIATO - SIN ESPERAR AL LLM
+        saludo_inicial = "Bienvenido a TaxiBlau."
+        logger.info(f"📢 Reproduciendo saludo inmediato: '{saludo_inicial}'")
+
+        # Enviar el saludo directamente al TTS (NO espera al LLM)
+        await tts.say(saludo_inicial)
+
+        # Disparar el primer paso obligatorio del flujo
+        context.add_message(
             {
                 "role": "system",
-                "content": "Say hello and briefly introduce yourself.",
+                "content": (
+                    "Cliente conectado. Usa ahora mismo 'check_user_status'. "
+                    "Si el cliente existe, pregúntale en qué puedes ayudar hoy. "
+                    "Si no existe, pide su nombre completo para registrarlo. "
+                    "Cuando te diga su nombre, usa 'register_user' y luego continúa con el flujo."
+                ),
             }
         )
         await task.queue_frames([LLMRunFrame()])
@@ -208,7 +261,7 @@ async def bot(runner_args: RunnerArguments, testing: Optional[bool] = False):
 
     if call_info:
         caller_number = call_info.get("from_number", "")
-        logger.info(f"📞 Call from: {caller_number} to: {call_info.get('to_number')}")
+        logger.info(f"📞 Call from: {caller_number}")
 
     serializer = TwilioFrameSerializer(
         stream_sid=call_data["stream_id"],

@@ -1,118 +1,123 @@
-# Twilio Chatbot: Function Calling
+# Taxiblau - Bot de Atención Telefónica con IA
 
-A Pipecat-based voice bot that extends Miss Harper with LLM function calling — enabling her to take actions mid-conversation like checking her schedule, looking up word definitions, and texting lesson summaries. Based on the [latency bot](../latency/) with the same API stack and latency observers.
+Bot de atención al cliente para Taxiblau que utiliza inteligencia artificial para responder llamadas telefónicas en tiempo real.
 
-## Architecture
+## Caracteristicas
 
-Same pipeline as the latency bot, with three tools registered on the LLM:
+- Atencion telefonica automatica 24/7
+- Respuestas en español con voz natural
+- Transcripcion en tiempo real
+- Integracion con Twilio Media Streams
+- Grabacion dual de llamadas (opcional)
+- Baja latencia en respuestas
 
-```
-Phone Call <-> Twilio <-> Bot (Modal)
-                          ├── Deepgram STT (nova-3)
-                          ├── Groq LLM (llama-3.3-70b) + function calling
-                          │   ├── get_class_schedule()  → mock data
-                          │   ├── lookup_word()          → Dictionary API
-                          │   └── send_lesson_summary()  → Twilio SMS
-                          ├── Deepgram TTS (aura-2-theia-en)
-                          ├── Silero VAD + Smart Turn v3
-                          └── Latency observers
-```
+## Tecnologias
 
-### Tools
+- Pipecat - Framework de orquestacion de voz/IA
+- Twilio - Telefonia y Media Streams
+- Deepgram - Speech-to-Text
+- OpenAI (GPT-4) - Procesamiento de lenguaje natural
+- Cartesia - Text-to-Speech
+- FastAPI - Servidor web
+- Docker - Contenerizacion
+- Render - Hosting y despliegue
 
-| Tool | Pattern | Description |
-|------|---------|-------------|
-| `get_class_schedule` | Mock data | Returns today's class schedule with subjects and times |
-| `lookup_word` | External API | Fetches word definitions from the [Free Dictionary API](https://dictionaryapi.dev/) |
-| `send_lesson_summary` | Side effect | Sends a lesson summary via SMS using the Twilio REST API |
+## Requisitos Previos
 
-### How Function Calling Works
+- Docker y Docker Compose
+- Cuenta en Twilio con numero telefonico
+- API Key de Deepgram
+- API Key de OpenAI
+- API Key de Cartesia
+- Cuenta en Render
 
-1. The student asks a question (e.g. "What does photosynthesis mean?")
-2. The LLM recognises it should use a tool and generates a function call
-3. Pipecat executes the registered handler (e.g. calls the Dictionary API)
-4. The result is fed back to the LLM
-5. The LLM incorporates the result into a spoken response
+## Estructura del Proyecto
 
-Tools with parameters are registered using Pipecat's `register_direct_function`, which auto-extracts the schema from the function signature and docstring. `get_class_schedule` uses the lower-level `register_function` API with a manual `FunctionSchema` — a workaround for a Groq quirk where parameter-free tools receive `arguments=null` instead of `{}`.
+server.py              # Servidor FastAPI y endpoints
+bot.py                 # Logica principal del bot
+requirements.txt       # Dependencias del proyecto
+Dockerfile             # Configuracion Docker
+.env                   # Variables de entorno (local)
+.dockerignore          # Archivos ignorados por Docker
+README.md              # Documentacion
 
-## Prerequisites
+## Variables de Entorno
 
-- A [Twilio](https://www.twilio.com/) account with a phone number that supports voice calls and SMS
-- A [Groq](https://console.groq.com/) API key
-- A [Deepgram](https://console.deepgram.com/) API key
-- [Modal](https://modal.com/) CLI installed and authenticated (for Modal deployment)
+Crear archivo `.env` con las siguientes variables:
 
-## Setup
+OPENAI_API_KEY=tu_api_key_de_openai
+DEEPGRAM_API_KEY=tu_api_key_de_deepgram
+CARTESIA_API_KEY=tu_api_key_de_cartesia
+TWILIO_ACCOUNT_SID=tu_sid_de_twilio
+TWILIO_AUTH_TOKEN=tu_token_de_twilio
 
-1. Install the Modal CLI:
+## Instalacion y Ejecucion Local con Docker
 
-   ```sh
-   uv tool install modal
-   modal setup
-   ```
+git clone https://github.com/tu-usuario/taxiblau-bot.git
+cd taxiblau-bot
+docker build -t taxiblau-bot .
+docker run -p 7860:7860 --env-file .env taxiblau-bot
 
-2. Create an `.env` file:
+## Dockerfile
 
-   ```sh
-   cd function-calling
-   cp env.example .env
-   ```
+FROM python:3.11-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+EXPOSE 7860
+CMD ["python", "server.py"]
 
-   Fill in the values:
+## .dockerignore
 
-   ```
-   GROQ_API_KEY=your_groq_api_key
-   DEEPGRAM_API_KEY=your_deepgram_api_key
-   TWILIO_ACCOUNT_SID=your_twilio_account_sid
-   TWILIO_AUTH_TOKEN=your_twilio_auth_token
-   TWILIO_PHONE_NUMBER=+1234567890
-   ```
+__pycache__
+*.pyc
+.env
+.git
+README.md
 
-   The `TWILIO_PHONE_NUMBER` is the "From" number for sending SMS. This must be a Twilio number in your account that is SMS-capable.
+## Despliegue en Render
 
-## Deployment
+1. Crear nuevo Web Service en Render
+2. Conectar repositorio de GitHub
+3. Seleccionar "Docker" como entorno
+4. Configurar variables de entorno
+5. Desplegar
 
-### Modal
+## Configuracion en Twilio
 
-```sh
-cd function-calling
-modal serve modal_app.py    # dev mode (temporary URL, live reload)
-modal deploy modal_app.py   # production (permanent URL)
-```
+1. En consola de Twilio, ir a Phone Numbers
+2. Seleccionar numero a configurar
+3. En "A call comes in", seleccionar Webhook
+4. URL: https://tu-dominio-en-render.com/
+5. Metodo: HTTP POST
+6. Guardar cambios
 
-### Docker
+## Comportamiento del Bot
 
-```sh
-cd function-calling
-export PROXY_HOST=<tunnel-name>-7860-<region>.devtunnels.ms
-docker compose up --build
-```
+El bot esta configurado como operadora de Taxiblau:
+- Responde amable y profesionalmente en español
+- Utiliza voz femenina friendly
+- Velocidad de habla: 1.2x
+- Procesa interrupciones naturalmente
+- Espera a que el usuario termine de hablar antes de responder
 
-See the [inbound bot README](../inbound/README.md#docker-deployment) for dev tunnel setup details.
+## Monitoreo
 
-### Configure Twilio
+Los logs estan habilitados en nivel DEBUG para seguimiento de:
+- Conexiones de clientes
+- Transcripciones de Deepgram
+- Tokens utilizados en OpenAI
+- Generacion de audio en Cartesia
+- Desconexiones
 
-Set your Twilio phone number's incoming call webhook to the bot's URL (POST method).
+## Notas Importantes
 
-## Testing the Tools
+- El bot funciona con una llamada a la vez con la configuracion actual
+- Para multiples llamadas concurrentes se requiere ajustar la arquitectura
+- Los costos de API se calculan por minuto de uso
+- Las grabaciones de llamadas son opcionales via API de Twilio
 
-Once deployed, call the bot and try:
+## Licencia
 
-- **Schedule**: "What's on the schedule today?" or "What's the next class?"
-- **Dictionary**: "What does photosynthesis mean?" or "Can you look up the word metamorphosis?"
-- **SMS**: "Can you send me a summary of what we learned?"
-
-## Project Structure
-
-```
-function-calling/
-  bot.py              # Bot logic with function calling (based on latency bot)
-  tools.py            # Three tool functions + registration helper
-  modal_app.py        # Modal deployment config
-  observers.py        # Custom LatencyBreakdownObserver (from latency/)
-  pyproject.toml      # Python project config and dependencies
-  Dockerfile          # Docker image for the bot
-  docker-compose.yml  # Local deployment
-  env.example         # Template for .env
-```
+Copyright (c) 2025 - Taxiblau - Todos los derechos reservados
